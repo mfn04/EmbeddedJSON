@@ -4,140 +4,61 @@
 #include "stdarg.h"
 #include "stdio.h"
 #include "freertos/FreeRTOS.h"
+#include "embeddedjson.h"
 
-#define OBJECT(...) ({ json_field arr[] = {__VA_ARGS__}; (json_object) {  \
-    .field_size = sizeof(arr)/sizeof(json_field), \
-    .field =  arr , \
-}; })
-
-#define FIELD_NUMBER(k, v) (json_field) { \
-    .key = k, \
-    .value_type = TYPE_NUMBER, \
-    .value = { \
-        .number = v \
-    } \
-}
-#define FIELD_STRING(k, v) (json_field) { \
-    .key = k, \
-    .value_type = TYPE_STRING, \
-    .value = { \
-        .string = v \
-    } \
-}
-#define FIELD_OBJECT(k, v) (json_field) { \
-    .key = k, \
-    .value_type = TYPE_OBJECT, \
-    .value = { \
-        .object = v \
-    } \
-}
-#define FIELD_ARRAY(k, v)
-
-#define FIELD_BOOLEAN(k, v) (json_field) { \
-    .key = k, \
-    .value_type = TYPE_BOOLEAN, \
-    .value = { \
-        .boolean = v \
-    } \
-}
-#define FIELD_NULL(k,v) (json_field) { \
-    .key = k, \
-    .value_type = TYPE_NULL, \
-    .value = { \
-        .number = v \
-    } \
-}
-
-typedef enum {
-    TYPE_NUMBER,
-    TYPE_ARRAY,
-    TYPE_BOOLEAN,
-    TYPE_OBJECT,
-    TYPE_STRING,
-    TYPE_NULL
-} field_type;
-
-struct json_field;
-
-typedef struct {
-    int field_size;
-    struct json_field* field;
-} json_object;
-
-typedef struct json_field {
-    const char* key;
-    field_type value_type;
-    union value_t {
-        uint32_t number;
-        const char* string;
-        json_object object;
-        bool boolean;
-    } value;
-} json_field;
-
-void pretty_print(json_object* object, int start_tab){
-    int tab = start_tab;
-    printf("{\n");
-    tab++;
-    for(int i = 0; i < object->field_size; i++){
-        int tab_done = 0;
-        while(tab_done < tab){
-            printf("\t");
-            tab_done++;
-        }
-        json_field field = object->field[i];
-        printf("\"%s\":", field.key);
-        switch (field.value_type)
-        {
-        case TYPE_STRING:
-            printf("\"%s\"\n", field.value.string);
-            break;
-        
-        case TYPE_NUMBER:
-            printf("%ld\n", field.value.number);
-            break;
-        
-        case TYPE_BOOLEAN:
-            if(field.value.boolean){
-                printf("true\n");
-            } else {
-                printf("false\n");
-            }
-            break;
-        
-        case TYPE_OBJECT:
-            pretty_print(&field.value.object,tab);
-            break;
-        
-        case TYPE_NULL:
-            printf("null\n");
-            break;
-        default:
-            break;
-        }
-    }
-    for(int i = 0; i < start_tab; i++){
-        printf("\t");
-    }
-    printf("}\n");
-}
 
 void app_main() {
 
-    int* asd;
+    json_value innerarray_values[] = {
+        make_number(5), 
+        make_boolean(false)
+    };
 
-    asd = (int[]){4,5,6,7};
+    json_field subobj_fields[] = {
+        make_field("inner_array", 
+                        make_array(2, innerarray_values)),
+        make_field("health", make_number(100))
+    };
+
+    json_value arr[] = {
+        make_boolean(true), 
+            make_string("123.123.421.43"), 
+
+            make_object(2, subobj_fields)
+    };
+
+    json_field baseobj[] = {
+        make_field("Temperature", make_number(50)),
+        make_field("Active", make_boolean(true)),
+        make_field("future_field", make_null()),
+        make_field("version", make_string("1.0.1")),
+        make_field("previous data", make_array(3, arr))
+    };
+
+    // Create an object using functions based on stack stored fields and values, they exist for the lifetime of the main function
+    json_value o1 = make_object(5, baseobj);
 
 
-    json_field data = FIELD_NUMBER("Hello", 5);
+    json_field data = FIELD("Hello", NUMBER(5));
 
-    json_object object = OBJECT(
-        FIELD_NUMBER("Balance", 50),
-        FIELD_STRING("First_Name", "Hello"),
-        FIELD_OBJECT("OBJECT",OBJECT(FIELD_NUMBER("TestSub",50))));
 
-    while(1){
-        pretty_print(&object,0);
+    // This method is bad because it creates a temporary anonymous initialization that dies right after the semicolon
+    json_value array = make_array(3, (json_value[]) {
+        make_number(10),
+        make_boolean(true),
+        make_string("ArrayString!")
+    });
+
+
+    // Create JSON using MACROS
+    json_object obj = JSON_OBJECT(FIELD("Test", NUMBER(5)),
+                            FIELD("First_Name",STRING("HiThere")),
+                            FIELD("array", ARRAY(3,&array)),
+                            FIELD("Object", OBJECT(FIELD("Hi",NUMBER(5)))));
+
+while(1){
+        pretty_print(&obj,0);
+        print_value(&o1,0);
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 
