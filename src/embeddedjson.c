@@ -1,29 +1,79 @@
 #include "embeddedjson.h"
 
-void print_scalar(json_scalar* scalar, int start_tab){
+/**
+ * CONSTANTS
+ */
+const char quote_str[] = "\"";
+const size_t quote_len = sizeof(quote_str)-1;
+const char colon_str[] = ":";
+const size_t colon_len = sizeof(colon_str)-1;
+const char comma_str[] = ",";
+const size_t comma_len = sizeof(comma_str)-1;
+
+const char bool_true_str[] = "true";
+const size_t bool_true_len = sizeof(bool_true_str)-1;
+const char bool_false_str[] = "false";
+const size_t bool_false_len = sizeof(bool_false_str)-1;
+
+const char null_str[] = "null";
+const size_t null_len = sizeof(null_str)-1;
+
+const char opening_curly_bracket_str[] = "{";
+const size_t opening_curly_bracket_len = sizeof(opening_curly_bracket_str)-1;
+const char closing_curly_bracket_str[] = "}";
+const size_t closing_curly_bracket_len = sizeof(closing_curly_bracket_str)-1;
+
+const char opening_square_bracket_str[] = "[";
+const size_t opening_square_bracket_len = sizeof(opening_square_bracket_str)-1;
+const char closing_square_bracket_str[] = "]";
+const size_t closing_square_bracket_len = sizeof(closing_square_bracket_str)-1;
+
+static void append_str_float(char buffer[], const int buffer_size, int* current_index, float value){
+    if((*current_index)+sizeof(value) > buffer_size){
+        printf("Buffer reached its maximum size, cannot insert anymore data.");
+        return;
+    }
+    sprintf(buffer+(*current_index),"%f", value);
+    *current_index += sizeof(value);
+}
+
+static void append_str_str(char buffer[], const int buffer_size, int* current_index, const char* str, int str_len){
+    if((*current_index)+(sizeof(char)*str_len) > buffer_size){
+        printf("Buffer reached its maximum size, cannot insert anymore data.");
+        return;
+    }
+    sprintf(buffer+(*current_index), str);
+    *current_index += str_len;
+}
+
+static void serialize_internal_scalar(json_scalar* scalar, char buffer[], const int buffer_size, int* current_index){
+    if(scalar == NULL) return;
     switch(scalar->base_type){
         case TYPE_NUMBER: {
-            printf("%ld", scalar->base.number);
+            append_str_float(buffer,buffer_size,current_index,scalar->base.number);
             break;
         }
         case TYPE_STRING: {
-            printf("\"%s\"", scalar->base.string);
+            const int QUOTES_STR_LEN = 2;
+            if((*current_index)+(sizeof(scalar->base.string)*(scalar->base.string_len+QUOTES_STR_LEN)) > buffer_size){
+                printf("Buffer reached its maximum size, cannot insert anymore data.");
+                return;
+            }
+            append_str_str(buffer,buffer_size,current_index, quote_str, quote_len);
+            append_str_str(buffer,buffer_size,current_index, scalar->base.string, strlen(scalar->base.string));
+            append_str_str(buffer,buffer_size,current_index, quote_str, quote_len);
             break;
         }
         case TYPE_BOOLEAN: {
             if(scalar->base.boolean){
-                printf("true");
+                append_str_str(buffer,buffer_size,current_index, bool_true_str, bool_true_len);
             } else {
-                printf("false");
+                append_str_str(buffer,buffer_size,current_index, bool_false_str, bool_false_len);
             }
             break;
         }
-        case TYPE_OBJECT: {
-            pretty_print(&scalar->base.object,start_tab);
-            break;
-        }
         case TYPE_NULL: {
-            printf("null");
+            append_str_str(buffer,buffer_size,current_index, null_str, null_len);
             break;
         }
         default:
@@ -31,143 +81,87 @@ void print_scalar(json_scalar* scalar, int start_tab){
     }
 }
 
-void print_array(json_array* array, int start_tab){
+// Forward declaration
+static void serialize_internal_value(json_value* value, char buffer[], const int buffer_size, int* current_index);
+
+static void serialize_internal_object(json_object* object, char buffer[], const int buffer_size, int* current_index){
+    if(object == NULL) return;
+    append_str_str(buffer,buffer_size,current_index, opening_curly_bracket_str, opening_curly_bracket_len);
+    for(int i = 0; i < object->field_size; i++){
+        json_field field = object->field[i];
+        append_str_str(buffer,buffer_size,current_index, quote_str, quote_len);
+        append_str_str(buffer,buffer_size,current_index, field.key, strlen(field.key));
+        append_str_str(buffer,buffer_size,current_index, quote_str, quote_len);
+        append_str_str(buffer,buffer_size,current_index, colon_str, colon_len);
+        serialize_internal_value(&field.value,buffer,buffer_size,current_index);
+        if(i < object->field_size-1 && object->field_size > 1){
+            append_str_str(buffer,buffer_size,current_index, comma_str, comma_len);
+        }
+    }
+    append_str_str(buffer,buffer_size,current_index, closing_curly_bracket_str, closing_curly_bracket_len);
+}
+    
+
+static void serialize_internal_array(json_array* array, char buffer[], const int buffer_size, int* current_index){
+    if(array == NULL) return;
     int i = 0;
-    printf("[");
+    append_str_str(buffer,buffer_size,current_index, opening_square_bracket_str, opening_square_bracket_len);
     while(i < array->size){
-        print_value(&array->elements[i], start_tab);
+        serialize_internal_value(&array->elements[i],buffer,buffer_size,current_index);
         if(i < array->size - 1) {
-            printf(", ");
+            append_str_str(buffer,buffer_size,current_index, comma_str, comma_len);
         }
         i++;
     }
-    printf("]");
+    append_str_str(buffer,buffer_size,current_index, closing_square_bracket_str, closing_square_bracket_len);
 }
 
-void print_value(json_value* value, int start_tab){
+static void serialize_internal_value(json_value* value, char buffer[], const int buffer_size, int* current_index){
+    if(value == NULL) return;
     switch(value->type){
         case SCALAR_VALUE: {
             json_scalar* scalar = &value->value.scalar;
-            print_scalar(scalar,start_tab);
+            serialize_internal_scalar(scalar,buffer,buffer_size,current_index);
             break;
         }
         case ARRAY_VALUE: {
             json_array* array = &value->value.array;
-            print_array(array,start_tab);
+            serialize_internal_array(array,buffer,buffer_size,current_index);
+            break;
+        }
+        case OBJECT_VALUE: {
+            json_object* object = &value->value.object;
+            serialize_internal_object(object,buffer,buffer_size,current_index);
             break;
         }
     }
 }
 
-void pretty_print(json_object* object, int start_tab){
-    
-    int tab = start_tab;
-    printf("{\n");
-    tab++;
-    for(int i = 0; i < object->field_size; i++){
-        int tab_done = 0;
-        while(tab_done < tab){
-            printf("\t");
-            tab_done++;
-        }
-        json_field field = object->field[i];
-        printf("\"%s\" : ", field.key);
-        print_value(&field.value, tab);
-        if(i < object->field_size-1 && object->field_size > 1){
-            printf(",");
-        }
-        printf("\n");
-    }
-    for(int i = 0; i < start_tab; i++){
-        printf("\t");
-    }
-    printf("}\n");
+static void serialize_internal_document(json_document* document, char buffer[], const int buffer_size, int* current_index) {
+    serialize_internal_value(document,buffer,buffer_size,current_index);
 }
 
-/*json_document make_document(document_type type) {
-
-    switch(type){
-        case OBJECT: {
-            return (json_object) {
-                
-            };
-        }
-    }
-
+void serialize_scalar(json_scalar* scalar, char buffer[], const int buffer_size){
+    int current_index = 0;
+    serialize_internal_scalar(scalar,buffer,buffer_size,&current_index);
 }
 
-json_document make_object_root(document_type type, json_root root) {
-    return (json_document) {
-        .type = type,
-        .root = root
-    };
-}*/
-
-inline json_value make_object(int field_size, json_field fields[]){
-    return (json_value) {
-        .type = SCALAR_VALUE,
-        .value.scalar = {
-            .base_type = TYPE_OBJECT,
-            .base.object = {
-                .field = fields,
-                .field_size = field_size
-            }
-        }
-    };
+void serialize_array(json_array* array, char buffer[], const int buffer_size){
+    int current_index = 0;
+    serialize_internal_array(array,buffer,buffer_size,&current_index);
 }
 
-inline json_value make_array(int size, json_value values[]){
-    return (json_value) {
-        .type = ARRAY_VALUE,
-        .value.array = {
-            .size = size,
-            .elements = values
-        }
-    };
+void serialize_object(json_object* object, char buffer[], const int buffer_size){
+    int current_index = 0;
+    serialize_internal_object(object,buffer,buffer_size,&current_index);
 }
 
-inline json_field make_field(const char* k, json_value v){
-    return (json_field) {
-        .key = k,
-        .value = v
-    };
+void serialize_value(json_value* value, char buffer[], const int buffer_size){
+    int current_index = 0;
+    serialize_internal_value(value,buffer,buffer_size,&current_index);
 }
 
-inline json_value make_number(uint32_t num){
-    return (json_value) {
-        .type = SCALAR_VALUE,
-        .value.scalar = {
-            .base_type = TYPE_NUMBER,
-            .base.number = num
-        }
-    };
-}
-
-inline json_value make_string(const char* str){
-    return (json_value) {
-        .type = SCALAR_VALUE,
-        .value.scalar = {
-            .base_type = TYPE_STRING,
-            .base.string = str
-        }
-    };
-}
-
-inline json_value make_boolean(bool b){
-    return (json_value) {
-        .type = SCALAR_VALUE,
-        .value.scalar = {
-            .base_type = TYPE_BOOLEAN,
-            .base.boolean = b
-        }
-    };
-}
-
-inline json_value make_null(){
-    return (json_value) {
-        .type = SCALAR_VALUE,
-        .value.scalar = {
-            .base_type = TYPE_NULL
-        }
-    };
+void serialize_document(json_document* document, char buffer[], const int buffer_size){
+    int current_index = 0;
+    serialize_internal_document(document,buffer,buffer_size,&current_index);
 }
