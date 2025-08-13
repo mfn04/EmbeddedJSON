@@ -30,45 +30,45 @@
 #include "stdbool.h"
 #include "string.h"
 
-#define JSON_DOCUMENT(s) _Generic((s), json_value: s)
+#define EJ_DOCUMENT(s) _Generic((s), ejson_value: s)
 
-#define FIELD(k, v) _Generic((k), \
+#define EJ_FIELD(k, v) _Generic((k), \
     char*: _Generic((v), \
-        json_value: (json_field) { \
+        ejson_value: (ejson_field) { \
             .key = k, \
             .value = v \
         } \
     ), \
     const char*: _Generic((v), \
-        json_value: (json_field) { \
+        ejson_value: (ejson_field) { \
             .key = k, \
             .value = v \
         } \
     ) \
 )
 
-#define ARRAY(s,...) _Generic((s), \
-    int: (json_value) { \
+#define EJ_ARRAY(s,...) _Generic((s), \
+    int: (ejson_value) { \
         .type = ARRAY_VALUE, \
         .value.array = { \
             .size = s, \
-            .elements = (json_value[]) {__VA_ARGS__} \
+            .elements = (ejson_value[]) {__VA_ARGS__} \
         } \
     } \
 )
 
-#define OBJECT(s,...) _Generic((s), \
-    int: (json_value) { \
+#define EJ_OBJECT(s,...) _Generic((s), \
+    int: (ejson_value) { \
         .type = OBJECT_VALUE, \
         .value.object = { \
             .field_size = s, \
-            .field = (json_field[]){__VA_ARGS__} \
+            .field = (ejson_field[]){__VA_ARGS__} \
         } \
     } \
 )
 
-#define NUMBER(v) _Generic((v), \
-    int: (json_value) { \
+#define EJ_NUMBER(v) _Generic((v), \
+    int: (ejson_value) { \
         .type = SCALAR_VALUE, \
         .value.scalar = { \
             .base_type = TYPE_NUMBER, \
@@ -77,8 +77,8 @@
     } \
 )
 
-#define STRING(str,len) _Generic((str), \
-    char*: (json_value) { \
+#define EJ_STRING(str,len) _Generic((str), \
+    char*: (ejson_value) { \
         .type = SCALAR_VALUE, \
         .value.scalar = { \
             .base_type = TYPE_STRING, \
@@ -86,7 +86,7 @@
             .base.string_len = len \
         } \
     }, \
-    const char*: (json_value) { \
+    const char*: (ejson_value) { \
         .type = SCALAR_VALUE, \
         .value.scalar = { \
             .base_type = TYPE_STRING, \
@@ -96,8 +96,8 @@
     } \
 )
 
-#define BOOLEAN(v) _Generic((v), \
-    int: (json_value) { \
+#define EJ_BOOLEAN(v) _Generic((v), \
+    int: (ejson_value) { \
         .type = SCALAR_VALUE, \
         .value.scalar = { \
             .base_type = TYPE_BOOLEAN, \
@@ -106,33 +106,45 @@
     } \
 )
 
-#define NILL() (json_value) { \
+#define EJ_NULL() (ejson_value) { \
     .type = SCALAR_VALUE, \
     .value.scalar = { \
         .base_type = TYPE_NULL, \
     } \
 }
 
-typedef enum scalar_type {
+typedef enum ejson_err_t {
+    EJSON_ERROR_OVERFLOW,
+    EJSON_ERROR_INVALID_POINTER,
+    EJSON_ERROR_INVALID_BUFFERSIZE,
+    EJSON_OK
+} ejson_err_t;
+
+#define EJSON_ERROR_CHECK(x) \
+    if(x != EJSON_OK) { \
+        return x; \
+    } \
+
+typedef enum ejson_scalar_type {
     TYPE_NUMBER,
     TYPE_BOOLEAN,
     TYPE_STRING,
     TYPE_NULL
-} scalar_type;
+} ejson_scalar_type;
 
-typedef enum value_type {
+typedef enum ejson_value_type {
     SCALAR_VALUE,
     ARRAY_VALUE,
     OBJECT_VALUE
-} value_type;
+} ejson_value_type;
 
-typedef struct json_object {
+typedef struct ejson_object {
     int field_size;
-    struct json_field* field;
-} json_object;
+    struct ejson_field* field;
+} ejson_object;
 
-typedef struct json_scalar {
-    scalar_type base_type;
+typedef struct ejson_scalar {
+    ejson_scalar_type base_type;
     union {
             float number;
             struct {
@@ -141,46 +153,46 @@ typedef struct json_scalar {
             };
             bool boolean;
     } base;
-} json_scalar;
+} ejson_scalar;
 
 
-typedef struct json_array {
-    struct json_value* elements;
+typedef struct ejson_array {
+    struct ejson_value* elements;
     int size;
-} json_array;
+} ejson_array;
 
-typedef struct json_value {
-    value_type type;
+typedef struct ejson_value {
+    ejson_value_type type;
     union {
-        json_array array;
-        json_scalar scalar;
-        json_object object;
+        ejson_array array;
+        ejson_scalar scalar;
+        ejson_object object;
     } value;
-} json_value;
+} ejson_value;
 
-typedef struct json_field {
+typedef struct ejson_field {
     const char* key;
-    json_value value;
-} json_field;
+    ejson_value value;
+} ejson_field;
 
-typedef json_value json_document;
+typedef ejson_value ejson_document;
 
-void serialize_scalar(json_scalar* scalar, char buffer[], int buffer_size);
+ejson_err_t ejson_serialize_scalar(ejson_scalar* scalar, char buffer[], int buffer_size);
 
-void serialize_array(json_array* array, char buffer[], int buffer_size);
+ejson_err_t ejson_serialize_array(ejson_array* array, char buffer[], int buffer_size);
 
-void serialize_object(json_object* object, char buffer[], int buffer_size);
+ejson_err_t ejson_serialize_object(ejson_object* object, char buffer[], int buffer_size);
 
-void serialize_value(json_value* value, char buffer[], int buffer_size);
+ejson_err_t ejson_serialize_value(ejson_value* value, char buffer[], int buffer_size);
 
-void serialize_document(json_document* document, char buffer[], int buffer_size);
+ejson_err_t ejson_serialize_document(ejson_document* document, char buffer[], int buffer_size);
 
-inline json_document make_document(json_value value) {
+static inline ejson_document ejson_make_document(ejson_value value) {
     return value;
 }
 
-inline json_value make_object(int field_size, json_field fields[]){
-    return (json_value) {
+static inline ejson_value ejson_make_object(int field_size, ejson_field fields[]){
+    return (ejson_value) {
         .type = OBJECT_VALUE,
         .value.object = {
             .field = fields,
@@ -189,8 +201,8 @@ inline json_value make_object(int field_size, json_field fields[]){
     };
 }
 
-inline json_value make_array(int size, json_value values[]){
-    return (json_value) {
+static inline ejson_value ejson_make_array(int size, ejson_value values[]){
+    return (ejson_value) {
         .type = ARRAY_VALUE,
         .value.array = {
             .size = size,
@@ -199,15 +211,15 @@ inline json_value make_array(int size, json_value values[]){
     };
 }
 
-inline json_field make_field(const char* k, json_value v){
-    return (json_field) {
+static inline ejson_field ejson_make_field(const char* k, ejson_value v){
+    return (ejson_field) {
         .key = k,
         .value = v
     };
 }
 
-inline json_value make_number(float num){
-    return (json_value) {
+static inline ejson_value ejson_make_number(float num){
+    return (ejson_value) {
         .type = SCALAR_VALUE,
         .value.scalar = {
             .base_type = TYPE_NUMBER,
@@ -216,8 +228,8 @@ inline json_value make_number(float num){
     };
 }
 
-inline json_value make_string(const char* str, int str_len){
-    return (json_value) {
+static inline ejson_value ejson_make_string(const char* str, int str_len){
+    return (ejson_value) {
         .type = SCALAR_VALUE,
         .value.scalar = {
             .base_type = TYPE_STRING,
@@ -227,8 +239,8 @@ inline json_value make_string(const char* str, int str_len){
     };
 }
 
-inline json_value make_boolean(bool b){
-    return (json_value) {
+static inline ejson_value ejson_make_boolean(bool b){
+    return (ejson_value) {
         .type = SCALAR_VALUE,
         .value.scalar = {
             .base_type = TYPE_BOOLEAN,
@@ -237,13 +249,15 @@ inline json_value make_boolean(bool b){
     };
 }
 
-inline json_value make_null(){
-    return (json_value) {
+static inline ejson_value ejson_make_null(){
+    return (ejson_value) {
         .type = SCALAR_VALUE,
         .value.scalar = {
             .base_type = TYPE_NULL
         }
     };
 }
+
+ejson_err_t ejson_get_error();
 
 #endif
