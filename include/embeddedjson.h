@@ -258,6 +258,4 @@ static inline ejson_value ejson_make_null(){
     };
 }
 
-ejson_err_t ejson_get_error();
-
 #endif

@@ -54,56 +54,46 @@ const size_t opening_square_bracket_len = sizeof(opening_square_bracket_str)-1;
 const char closing_square_bracket_str[] = "]";
 const size_t closing_square_bracket_len = sizeof(closing_square_bracket_str)-1;
 
-ejson_err_t ej_error = EJSON_OK;
+//ejson_err_t ej_error = EJSON_OK;
 
 static ejson_err_t append_str_float(char buffer[], const int buffer_size, int* current_index, float value){
     if(buffer == NULL || current_index == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     char val_str[64];
     int written = sprintf(val_str,"%.17e",value);
     if((*current_index)+written > buffer_size){
-        ej_error = EJSON_ERROR_OVERFLOW;
-        return ej_error;
+        return EJSON_ERROR_OVERFLOW;
     }
     memcpy(buffer+(*current_index), val_str, written);
     *current_index += written;
-    ej_error = EJSON_OK;
-    return ej_error;
+    return EJSON_OK;
 }
 
 static ejson_err_t append_str_str(char buffer[], const int buffer_size, int* current_index, const char* str, int str_len){
     if(buffer == NULL || current_index == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     if((*current_index)+(sizeof(char)*str_len) > buffer_size){
-        ej_error = EJSON_ERROR_OVERFLOW;
-        return ej_error;
+        return EJSON_ERROR_OVERFLOW;
     }
     memcpy(buffer+(*current_index),str,str_len);
     *current_index += str_len;
-    ej_error = EJSON_OK;
-    return ej_error;
+    return EJSON_OK;
 }
 
 static ejson_err_t ejson_serialize_internal_scalar(ejson_scalar* scalar, char buffer[], const int buffer_size, int* current_index){
     if(scalar == NULL || buffer == NULL || current_index == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     switch(scalar->base_type){
         case TYPE_NUMBER: {
@@ -131,7 +121,7 @@ static ejson_err_t ejson_serialize_internal_scalar(ejson_scalar* scalar, char bu
         default:
         break;
     }
-    return ej_error;
+    return EJSON_OK;
 }
 
 // Forward declaration
@@ -139,12 +129,10 @@ static ejson_err_t ejson_serialize_internal_value(ejson_value* value, char buffe
 
 static ejson_err_t ejson_serialize_internal_object(ejson_object* object, char buffer[], const int buffer_size, int* current_index){
     if(object == NULL || buffer == NULL || current_index == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     append_str_str(buffer,buffer_size,current_index, opening_curly_bracket_str, opening_curly_bracket_len);
     for(int i = 0; i < object->field_size; i++){
@@ -159,19 +147,16 @@ static ejson_err_t ejson_serialize_internal_object(ejson_object* object, char bu
         }
     }
     EJSON_ERROR_CHECK(append_str_str(buffer,buffer_size,current_index, closing_curly_bracket_str, closing_curly_bracket_len));
-    ej_error = EJSON_OK;
-    return ej_error;
+    return EJSON_OK;
 }
     
 
 static ejson_err_t ejson_serialize_internal_array(ejson_array* array, char buffer[], const int buffer_size, int* current_index){
     if(array == NULL || buffer == NULL || current_index == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     int i = 0;
     EJSON_ERROR_CHECK(append_str_str(buffer,buffer_size,current_index, opening_square_bracket_str, opening_square_bracket_len));
@@ -183,18 +168,15 @@ static ejson_err_t ejson_serialize_internal_array(ejson_array* array, char buffe
         i++;
     }
     EJSON_ERROR_CHECK(append_str_str(buffer,buffer_size,current_index, closing_square_bracket_str, closing_square_bracket_len));
-    ej_error = EJSON_OK;
-    return ej_error;
+    return EJSON_OK;
 }
 
 static ejson_err_t ejson_serialize_internal_value(ejson_value* value, char buffer[], const int buffer_size, int* current_index){
     if(value == NULL || buffer == NULL || current_index == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     switch(value->type){
         case SCALAR_VALUE: {
@@ -213,31 +195,26 @@ static ejson_err_t ejson_serialize_internal_value(ejson_value* value, char buffe
             break;
         }
     }
-    ej_error = EJSON_OK;
-    return ej_error;
+    return EJSON_OK;
 }
 
 static ejson_err_t ejson_serialize_internal_document(ejson_document* document, char buffer[], const int buffer_size, int* current_index) {
     if(document == NULL || buffer == NULL || current_index == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     EJSON_ERROR_CHECK(ejson_serialize_internal_value(document,buffer,buffer_size,current_index));
-    return ej_error;
+    return EJSON_OK;
 }
 
 ejson_err_t ejson_serialize_scalar(ejson_scalar* scalar, char buffer[], const int buffer_size){
     if(scalar == NULL || buffer == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     int current_index = 0;
     EJSON_ERROR_CHECK(ejson_serialize_internal_scalar(scalar,buffer,buffer_size,&current_index));
@@ -246,17 +223,15 @@ ejson_err_t ejson_serialize_scalar(ejson_scalar* scalar, char buffer[], const in
     } else {
         buffer[buffer_size-1] = '\0';
     }
-    return ej_error;
+    return EJSON_OK;
 }
 
 ejson_err_t ejson_serialize_array(ejson_array* array, char buffer[], const int buffer_size){
     if(array == NULL || buffer == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     int current_index = 0;
     EJSON_ERROR_CHECK(ejson_serialize_internal_array(array,buffer,buffer_size,&current_index));
@@ -265,17 +240,15 @@ ejson_err_t ejson_serialize_array(ejson_array* array, char buffer[], const int b
     } else {
         buffer[buffer_size-1] = '\0';
     }
-    return ej_error;
+    return EJSON_OK;
 }
 
 ejson_err_t ejson_serialize_object(ejson_object* object, char buffer[], const int buffer_size){
     if(object == NULL || buffer == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     int current_index = 0;
     EJSON_ERROR_CHECK(ejson_serialize_internal_object(object,buffer,buffer_size,&current_index));
@@ -284,17 +257,15 @@ ejson_err_t ejson_serialize_object(ejson_object* object, char buffer[], const in
     } else {
         buffer[buffer_size-1] = '\0';
     }
-    return ej_error;
+    return EJSON_OK;
 }
 
 ejson_err_t ejson_serialize_value(ejson_value* value, char buffer[], const int buffer_size){
     if(value == NULL || buffer == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     int current_index = 0;
     EJSON_ERROR_CHECK(ejson_serialize_internal_value(value,buffer,buffer_size,&current_index));
@@ -303,17 +274,15 @@ ejson_err_t ejson_serialize_value(ejson_value* value, char buffer[], const int b
     } else {
         buffer[buffer_size-1] = '\0';
     }
-    return ej_error;
+    return EJSON_OK;
 }
 
 ejson_err_t ejson_serialize_document(ejson_document* document, char buffer[], const int buffer_size){
     if(document == NULL || buffer == NULL){
-        ej_error = EJSON_ERROR_INVALID_POINTER;
-        return ej_error;
+        return EJSON_ERROR_INVALID_POINTER;
     }
     if(buffer_size <= 0){
-        ej_error = EJSON_ERROR_INVALID_BUFFERSIZE;
-        return ej_error;
+        return EJSON_ERROR_INVALID_BUFFERSIZE;
     }
     int current_index = 0;
     EJSON_ERROR_CHECK(ejson_serialize_internal_document(document,buffer,buffer_size, &current_index));
@@ -322,9 +291,5 @@ ejson_err_t ejson_serialize_document(ejson_document* document, char buffer[], co
     } else {
         buffer[buffer_size-1] = '\0';
     }
-    return ej_error;
-}
-
-ejson_err_t ejson_get_error(){
-    return ej_error;
+    return EJSON_OK;
 }
